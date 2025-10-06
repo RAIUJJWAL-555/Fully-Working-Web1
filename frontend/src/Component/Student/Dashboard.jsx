@@ -2,10 +2,10 @@ import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
+import { Menu, X } from 'lucide-react'; // Icons for mobile toggle
 
-
-import Sidebar from "../Student/Sidebar";
-import Header from "../Student/Header";
+import Sidebar from "../Student/Sidebar"; 
+import Header from "../Student/Header"; 
 import StatCard from "../Student/StatCard";
 import MainCard from "../Student/MainCard";
 import ProfileCard from "../Student/ProfileCard";
@@ -28,7 +28,6 @@ const containerVariants = {
   },
 };
 
-
 const itemVariants = {
   hidden: { y: 20, opacity: 0 },
   visible: { y: 0, opacity: 1 },
@@ -39,26 +38,24 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState("dashboard"); 
   const [error, setError] = useState(null);
-  
-  // ⭐ नया स्टेट: डेटा रीफ़्रेश को मजबूर करने के लिए
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile drawer state
   const [refreshKey, setRefreshKey] = useState(0); 
+  // ⭐ NEW STATE: Controls desktop sidebar collapse
+  const [isCollapsed, setIsCollapsed] = useState(false); 
 
   const navigate = useNavigate();
 
-  // ⭐ नया फ़ंक्शन: इस फ़ंक्शन को चाइल्ड कंपोनेंट्स (जैसे FeePaymentForm) में पास किया जा सकता है
-  // ताकि फीस अपडेट होने के बाद मुख्य डैशबोर्ड डेटा रीफ़्रेश हो जाए।
   const handleRefreshData = useCallback(() => {
     setRefreshKey(prevKey => prevKey + 1);
     toast.info("Refreshing dashboard data...");
   }, []);
 
-
-  // --- Data Fetching Logic (UPDATED URL) ---
+  // --- Data Fetching Logic (Unchanged) ---
   const fetchStudentProfile = useCallback(async (id) => {
+    // ... (unchanged)
     setLoading(true);
     setError(null);
     try {
-      // ✅ URL UPDATED: Using /api/student/profile/:id
       const res = await fetch(`${BASE_URL}/student/profile/${id}`);
       const data = await res.json();
 
@@ -74,16 +71,15 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, []); // useCallback dependency array is empty
+  }, []); 
 
   
   useEffect(() => {
+    // ... (unchanged session and data retrieval logic) ...
     const studentDataString = localStorage.getItem("studentData");
 
     if (!studentDataString) {
       toast.error("Please log in to access the dashboard.");
-      // ⚠️ FIX: /login/student navigate path is incorrect. It should be just '/login' or handle routing correctly. 
-      // Assuming routing logic handles this, keeping original path convention for now.
       navigate("/login/student"); 
       return;
     }
@@ -105,41 +101,51 @@ const Dashboard = () => {
       return;
     }
     
-    // ⭐ अब fetchStudentProfile को refreshKey के बदलने पर भी कॉल करें
     fetchStudentProfile(studentId);
     
-  }, [navigate, fetchStudentProfile, refreshKey]); // 👈 UPDATED dependency array
+  }, [navigate, fetchStudentProfile, refreshKey]); 
 
 
-  // --- Helper Function for Logout (Unchanged) ---
   const handleLogout = () => {
     localStorage.removeItem("studentData");
     toast.info("You have been logged out.");
     navigate("/login/student");
   };
 
-  // --- Loading and Error Screens (Unchanged) ---
+
+  // ⭐ DYNAMIC LAYOUT CALCULATION
+  const getMarginStyle = () => {
+    // Only apply dynamic margin on large screens and up (desktop view)
+    if (window.innerWidth >= 1024) {
+      // 16rem = 256px (w-64); 4.5rem = 72px (w-18)
+      const desktopMargin = isCollapsed ? '72px' : '256px';
+      return { marginLeft: desktopMargin };
+    }
+    // On mobile, the sidebar is fixed/absolute, so the margin is 0
+    return {};
+  };
+
+  // --- Loading and Error Screens ---
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen bg-gray-100">
-        <p className="text-2xl text-indigo-600">Loading Dashboard...</p>
+      <div className="flex justify-center items-center min-h-screen bg-gray-50">
+        <p className="text-2xl text-indigo-600 font-semibold">Loading Dashboard...</p>
       </div>
     );
   }
 
   if (error || !student) {
-    // ... (Error JSX unchanged) ...
     return (
-      <div className="flex flex-col justify-center items-center min-h-screen bg-gray-100 p-8">
-        <h1 className="text-3xl text-red-600 mb-4 font-bold">
+      <div className="flex flex-col justify-center items-center min-h-screen bg-red-50 p-8">
+        <h1 className="text-3xl text-red-700 mb-4 font-bold">
           Error: {error || "Profile data unavailable"}
         </h1>
-        <p className="text-gray-600 mb-6">
-          Could not load student data. Please ensure the backend is running.
+        <p className="text-red-600 mb-6 text-center">
+          Could not load student data. Please ensure the backend is running and your session is valid.
         </p>
         <button
           onClick={handleLogout}
-          className="bg-indigo-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-600 transition"
+          className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-indigo-700 transition shadow-md"
         >
           Return to Login
         </button>
@@ -147,7 +153,6 @@ const Dashboard = () => {
     );
   }
 
-  // --- Data Destructuring (Unchanged) ---
   const {
     name,
     roomAllotted,
@@ -158,18 +163,43 @@ const Dashboard = () => {
     ...profileData
   } = student;
 
-  // --- Render Logic (Unchanged) ---
+  // --- Render Logic ---
   return (
-    <div className="min-h-screen bg-gray-50 grid grid-cols-[280px_1fr] transition-all duration-300">
+    <div className="min-h-screen bg-gray-50 flex"> 
+      
+      {/* 1. Sidebar Component */}
       <Sidebar
         studentName={name}
         currentView={activeView}
-        onNavigate={setActiveView}
+        isCollapsed={isCollapsed} 
+        onToggleCollapse={() => setIsCollapsed(!isCollapsed)} // ⭐ Toggles the collapse state
+        onNavigate={(view) => {
+            setActiveView(view);
+            setIsSidebarOpen(false); // Close on mobile navigation
+        }}
         onLogout={handleLogout}
+        isMobileOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
       />
       
+      {/* 2. Main Content Area */}
+      <main 
+        // ⭐ DYNAMIC MARGIN FOR DESKTOP COLLAPSE 
+        style={getMarginStyle()}
+        // PADDING: pl-12 is added for mobile to give space for the toggle button
+        className="flex-grow p-4 pl-12 lg:p-8 transition-all duration-300"
+      >
+          
+        {/* MOBILE SIDEBAR TOGGLE BUTTON */}
+        <button
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            // Fixed position for mobile, clear of the dynamic content margin
+            className="lg:hidden fixed top-4 left-4 z-50 p-2 text-indigo-700 bg-white rounded-full shadow-lg"
+            aria-label="Toggle Sidebar"
+        >
+            {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
 
-      <main className="p-8">
         <Header
           studentName={name}
           roomNumber={roomAllotted || "N/A"}
@@ -186,14 +216,17 @@ const Dashboard = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
+              className="mt-6" 
             >
-              {/* Key Hostel Stats Section (Unchanged) */}
+              {/* Key Hostel Stats Section */}
               <motion.section
-                className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"
+                // ⭐ RESPONSIVENESS: Cleanly adjusts the grid layout
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8"
                 variants={containerVariants}
                 initial="hidden"
                 animate="visible"
               >
+                {/* StatCard components here */}
                 <StatCard
                   title="Application Status"
                   value={status.toUpperCase()}
@@ -222,19 +255,17 @@ const Dashboard = () => {
                 />
                 <StatCard
                   title="Hostel Fees Status"
-                  value={`₹ ${feeAmountDue} ${
-                    feeStatus === "Pending" || feeStatus === "Overdue"
-                      ? "DUE"
-                      : "PAID"
-                  }`}
+                  // Value remains clean for mobile view
+                  value={feeStatus === "Paid" ? "PAID" : `₹ ${feeAmountDue || 0} DUE`} 
                   icon="💰"
                   color={feeStatus === "Paid" ? "green" : "red"} 
                   variants={itemVariants}
                 />
               </motion.section>
 
-              {/* Main Content Grid: Notices and Profile (Unchanged) */}
+              {/* Main Content Grid: Notices and Profile */}
               <motion.div
+                // ⭐ RESPONSIVENESS: Profile stacks first on mobile/tablet (order-first)
                 className="grid grid-cols-1 lg:grid-cols-3 gap-6"
                 variants={containerVariants}
                 initial="hidden"
@@ -243,14 +274,16 @@ const Dashboard = () => {
                 <MainCard
                   title="Student Profile"
                   variants={itemVariants}
-                  className="lg:col-span-1"
+                  // Takes full width on mobile/tablet, then 1 column on desktop
+                  className="lg:col-span-1 order-first lg:order-none" 
                 >
                   <ProfileCard studentData={student} />
                 </MainCard>
                 <MainCard
                   title="Hostel Notices & Updates"
                   variants={itemVariants}
-                  className="lg:col-span-2"
+                  // Takes full width on mobile/tablet, then 2 columns on desktop
+                  className="lg:col-span-2" 
                 >
                   <NoticeList />
                 </MainCard>
@@ -266,25 +299,15 @@ const Dashboard = () => {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.3 }}
+              className="mt-6"
             >
               <ComplaintBox 
                 studentData={student} 
-                // ⭐ Optional: यदि शिकायत सबमिट करने के बाद भी डेटा रीफ़्रेश करना हो
                 onComplaintSubmitted={handleRefreshData} 
               />
             </motion.div>
           )}
           
-          {/* ⭐ Future View for Fees - Example of how to use handleRefreshData */}
-          {/* {activeView === "fees" && (
-            <motion.div>
-                <FeePaymentForm 
-                    studentData={student} 
-                    onPaymentSuccess={handleRefreshData} // फीस जमा होने पर डेटा रीफ़्रेश होगा
-                />
-            </motion.div>
-          )} */}
-
           {/* Add conditional rendering for 'grades' and 'settings' here later */}
         </AnimatePresence>
       </main>
